@@ -1,7 +1,10 @@
 import tactic
 
+open classical
+local attribute [instance, priority 10] prop_decidable
+
 /-- Formulas of propositional logic, 
-`Form` ::= `⦃x⦄` | `𝔽` | `¬ Form` | `Form ∧ Form` | `Form ∨ Form` -/
+`Form` ::= `⦃x⦄` | `⊥` | `¬ Form` | `Form ∧ Form` | `Form ∨ Form` -/
 inductive Form (vars : Type) : Type
 | Bottom : Form
 | Var    : vars → Form
@@ -9,45 +12,50 @@ inductive Form (vars : Type) : Type
 | And    : Form → Form → Form
 | Or     : Form → Form → Form
 
-notation `𝔽`        := Form.Bottom
+
+--notation `⊥`        := Form.Bottom
 notation `⦃` a `⦄`  := Form.Var a
 notation `~` a     := Form.Not a
 notation a ` ⋀ ` b := Form.And a b
 notation a ` ⋁ ` b := Form.Or a b
 
-variables {vars : Type} {Γ : list (Form vars)} {A B C : Form vars}
+variables {vars : Type} {Γ : set (Form vars)} {A B C : Form vars}
+
+instance : has_bot (Form vars) := ⟨Form.Bottom⟩
+
+@[simp] lemma bottom_eq_bot : (Form.Bottom : Form vars) = ⊥ := rfl
 
 /-- Gentzen-style (Proof Tree) Natural Deduction for `Form` -/
-inductive Deriv : list (Form vars) → Form vars → Prop
-| Bottom_E  : ∀ {Γ : list (Form vars)} {A : Form vars},
-              Deriv Γ 𝔽 → Deriv Γ A
-| Ax        : ∀ {Γ : list (Form vars)} {A : Form vars},
+inductive Deriv : set (Form vars) → Form vars → Prop
+| Bottom_E  : ∀ {Γ : set (Form vars)} {A : Form vars},
+              Deriv Γ ⊥ → Deriv Γ A
+| Ax        : ∀ {Γ : set (Form vars)} {A : Form vars},
               A ∈ Γ → Deriv Γ A
-| Not_I     : ∀ {Γ : list (Form vars)} {A : Form vars}, 
-              Deriv (A :: Γ) 𝔽 → Deriv Γ (~ A)
-| Not_E     : ∀ {Γ : list (Form vars)} {A : Form vars}, 
-              Deriv Γ (~ A) → Deriv Γ A → Deriv Γ 𝔽
-| And_I     : ∀ {Γ : list (Form vars)} {A B : Form vars}, 
+| Not_I     : ∀ {Γ : set (Form vars)} {A : Form vars}, 
+              Deriv (insert A Γ) ⊥ → Deriv Γ (~ A)
+| Not_E     : ∀ {Γ : set (Form vars)} {A : Form vars}, 
+              Deriv Γ (~ A) → Deriv Γ A → Deriv Γ ⊥
+| And_I     : ∀ {Γ : set (Form vars)} {A B : Form vars}, 
               Deriv Γ A → Deriv Γ B → Deriv Γ (A ⋀ B)
-| And_E_1   : ∀ {Γ : list (Form vars)} {A B : Form vars}, 
+| And_E_1   : ∀ {Γ : set (Form vars)} {A B : Form vars}, 
               Deriv Γ (A ⋀ B) → Deriv Γ A
-| And_E_2   : ∀ {Γ : list (Form vars)} {A B : Form vars}, 
+| And_E_2   : ∀ {Γ : set (Form vars)} {A B : Form vars}, 
               Deriv Γ (A ⋀ B) → Deriv Γ B
-| Or_I_1    : ∀ {Γ : list (Form vars)} {A B : Form vars}, 
+| Or_I_1    : ∀ {Γ : set (Form vars)} {A B : Form vars}, 
               Deriv Γ A → Deriv Γ (A ⋁ B)
-| Or_I_2    : ∀ {Γ : list (Form vars)} {A B : Form vars}, 
+| Or_I_2    : ∀ {Γ : set (Form vars)} {A B : Form vars}, 
               Deriv Γ B → Deriv Γ (A ⋁ B)
-| Or_E      : ∀ {Γ : list (Form vars)} {A B C : Form vars}, 
-              Deriv Γ (A ⋁ B) → Deriv (A :: Γ) C → Deriv (B :: Γ) C 
+| Or_E      : ∀ {Γ : set (Form vars)} {A B C : Form vars}, 
+              Deriv Γ (A ⋁ B) → Deriv (insert A Γ) C → Deriv (insert B Γ) C 
               → Deriv Γ C
-| Contra    : ∀ {Γ : list (Form vars)} {A : Form vars}, 
-              Deriv ((~ A) :: Γ) 𝔽 → Deriv Γ A
+| Contra    : ∀ {Γ : set (Form vars)} {A : Form vars}, 
+              Deriv (insert (~ A) Γ) ⊥ → Deriv Γ A
 
 notation Γ ` ⊩ ` A := Deriv Γ A
 notation Γ ` ⊮ ` A := ¬ Deriv Γ A
 
-def inconsistent {vars : Type} (Γ : list (Form vars)) : Prop := Γ ⊩ 𝔽 
-def consistent {vars : Type} (Γ : list (Form vars)) : Prop :=  Γ ⊮ 𝔽 
+def inconsistent (Γ : set (Form vars)) : Prop := Γ ⊩ ⊥ 
+def consistent   (Γ : set (Form vars)) : Prop := Γ ⊮ ⊥ 
 
 /-- An example derivation:
 (Ax) ---------  --------- (Ax)
@@ -55,7 +63,7 @@ def consistent {vars : Type} (Γ : list (Form vars)) : Prop :=  Γ ⊮ 𝔽
     --------------------- (⋀I)
          A, B ⊩ A ⋀ B
 -/
-example : [A, B] ⊩ (A ⋀ B) :=
+example : {A, B} ⊩ (A ⋀ B) :=
 begin
   apply Deriv.And_I,
   {
@@ -69,9 +77,9 @@ begin
 end
 
 def eval (v : vars → bool) : Form vars → bool
-| 𝔽 := false
-| ⦃x⦄ := v x
-| (~ P) := not (eval P)
+| ⊥       := false
+| ⦃x⦄     := v x
+| (~ P)   := not (eval P)
 | (P ⋀ Q) := and (eval P) (eval Q)
 | (P ⋁ Q) := or (eval P) (eval Q)
 
@@ -79,26 +87,24 @@ notation `⟦` P `⟧_` v := eval v P
 notation v ` ⊨ ` A := ⟦A⟧_v
 notation v ` ⊨ ` Γ := ∀ γ, γ ∈ Γ → ⟦γ⟧_v
 
-theorem no_bottom (v : vars → bool) : ¬ (↥(v ⊨ 𝔽)) :=
+theorem no_bottom (v : vars → bool) : ¬ (↥(v ⊨ ⊥)) :=
 by simp [eval]
 
-def entail (Γ : list (Form vars)) (A : Form vars) : Prop :=
+def entail (Γ : set (Form vars)) (A : Form vars) : Prop :=
 ∀ (v : vars → bool), (v ⊨ Γ) → (v ⊨ A)
 
 notation Γ ` ⊨ ` A := entail Γ A
 notation Γ ` ⊭ ` A := ¬ entail Γ A
 
-@[simp] def satisfiable (Γ : list (Form vars)) : Prop :=
+@[simp] def satisfiable (Γ : set (Form vars)) : Prop :=
 ∃ (v : vars → bool), v ⊨ Γ
-@[simp] def unsatisfiable (Γ : list (Form vars)) : Prop :=
+@[simp] def unsatisfiable (Γ : set (Form vars)) : Prop :=
 ¬ satisfiable Γ
 
-theorem satisfiable_iff (Γ : list (Form vars)) 
-                      : satisfiable Γ ↔ (Γ ⊭ 𝔽) :=
+theorem satisfiable_iff : satisfiable Γ ↔ (Γ ⊭ ⊥) :=
 by simp [satisfiable, entail, eval]
 
-theorem unsatisfiable_iff (Γ : list (Form vars)) 
-                        : unsatisfiable Γ ↔ (Γ ⊨ 𝔽) :=
+theorem unsatisfiable_iff : unsatisfiable Γ ↔ (Γ ⊨ ⊥) :=
 begin
   simp [eval, entail],
   split,
@@ -125,8 +131,7 @@ end
 -- Main Theorems: soundness & completeness theorems --
 ------------------------------------------------------
 
-theorem soundness {vars : Type} {Γ : list (Form vars)} {A : Form vars} : 
-                  (Γ ⊩ A) → (Γ ⊨ A) :=
+theorem soundness : (Γ ⊩ A) → (Γ ⊨ A) :=
 begin
   -- induce on the structure of the derivation
   -- but before that we unwrap definitions and introduce hypotheses
@@ -154,7 +159,7 @@ begin
    simp at hA,
    -- use the ih: we first have to prove the precedent in the
    -- exactly required form
-   have : ∀ (γ : Form vars), γ ∈ A :: Γ → (↥⟦γ⟧_ v),
+   have : ∀ (γ : Form vars), γ ∈ (insert A Γ) → (↥⟦γ⟧_ v),
    { -- either γ is A or its in Γ
      intros γ hγ,
      simp at hγ, cases hγ,
@@ -239,7 +244,7 @@ begin
    -- the structure of the proof is very similar.
    by_contra hA,
    simp [eval] at hA,
-   have : ∀ (γ : Form vars), γ ∈ (~ A) :: Γ → (↥⟦γ⟧_ v),
+   have : ∀ (γ : Form vars), γ ∈ (insert (~ A) Γ) → (↥⟦γ⟧_ v),
    {
      intros γ hγ,
      simp at hγ, cases hγ,
@@ -251,30 +256,190 @@ begin
   },
 end  
 
-def soundness' {vars : Type} (Γ : list (Form vars)) : 
-               satisfiable Γ → consistent Γ :=
+theorem soundness' : satisfiable Γ → consistent Γ :=
 begin
   rw [consistent, satisfiable_iff],
   intro hsat,
-  -- suppose towards a contradiction that Γ is inconsistent, so Γ ⊩ 𝔽
+  -- suppose towards a contradiction that Γ is inconsistent, so Γ ⊩ ⊥
   by_contra hcon,
-  -- by the soundness theorem, Γ ⊨ 𝔽, which contradicts Γ being satisfiable
-  have : (Γ ⊨ 𝔽) := soundness hcon,
+  -- by the soundness theorem, Γ ⊨ ⊥, which contradicts Γ being satisfiable
+  have : (Γ ⊨ ⊥) := soundness hcon,
   exact hsat this
 end
 
-def completeness' {vars : Type} {Γ : list (Form vars)} : 
-                  consistent Γ → satisfiable Γ := 
+def complete (Γ : set (Form vars)) : Prop := 
+  ∀ (A : Form vars), A ∈ Γ ∨ (~ A) ∈ Γ
+
+lemma contradiction_of_deriv_of_neg_nin 
+  (hcomp : complete Γ) (hcon : consistent Γ) 
+  : (Γ ⊩ A) →  A ∉ Γ → false :=
 begin
-  rw [consistent, satisfiable_iff],
+  intros hdA hAnin,
+  have : (~ A) ∈ Γ := (or_iff_right hAnin).mp (hcomp A),
+  have hdnA : (Γ ⊩ ~ A) := Deriv.Ax this,
+  have hincon : inconsistent Γ := Deriv.Not_E hdnA hdA,
+  exact hcon hincon
+end
+
+theorem deriv_closure 
+  (hcomp : complete Γ) (hcon : consistent Γ) : (Γ ⊩ A) ↔ A ∈ Γ :=
+begin
+  split,
+  {
+    intro hdA,
+    by_contra hAnin,
+    exact contradiction_of_deriv_of_neg_nin hcomp hcon hdA hAnin
+  },
+  { exact Deriv.Ax }
+end
+
+theorem neg_in_iff_not_in
+(hcomp : complete Γ) (hcon : consistent Γ) : (~ A) ∈ Γ ↔ A ∉ Γ :=
+begin
+  split,
+  {
+    intro hnA, 
+    by_contra hA,
+    have hincon : inconsistent Γ := Deriv.Not_E (Deriv.Ax hnA) (Deriv.Ax hA),
+    exact hcon hincon
+  },
+  { intro h, exact (or_iff_right h).mp (hcomp A) },
+end 
+
+theorem and_in_iff_both_in
+  (hcomp : complete Γ) (hcon : consistent Γ) : (A ⋀ B) ∈ Γ ↔ A ∈ Γ ∧ B ∈ Γ :=
+begin
+  split,
+  {
+    intro hAB,
+    have hdA : (Γ ⊩ A) := Deriv.And_E_1 (Deriv.Ax hAB),
+    have hdB : (Γ ⊩ B) := Deriv.And_E_2 (Deriv.Ax hAB),
+    split,
+    {by_contra hAnin, exact contradiction_of_deriv_of_neg_nin hcomp hcon hdA hAnin},
+    {by_contra hBnin, exact contradiction_of_deriv_of_neg_nin hcomp hcon hdB hBnin}
+  },
+  {
+    rintro ⟨hA, hB⟩,
+    have hdAB : (Γ ⊩ (A ⋀ B)) := Deriv.And_I (Deriv.Ax hA) (Deriv.Ax hB),
+    by_contra hABnin,
+    exact contradiction_of_deriv_of_neg_nin hcomp hcon hdAB hABnin
+  }
+end
+
+theorem or_in_iff_either_in
+  (hcomp : complete Γ) (hcon : consistent Γ) : (A ⋁ B) ∈ Γ ↔ A ∈ Γ ∨ B ∈ Γ :=
+begin
+  split,
+  {
+    intro hAB,
+    by_contra h,
+    rw [not_or_distrib] at h,
+    cases h with hAnin hBnin,
+    have hnAin : (~ A) ∈ Γ := (or_iff_right hAnin).mp (hcomp A),
+    have hnBin : (~ B) ∈ Γ := (or_iff_right hBnin).mp (hcomp B),
+
+    /- The derivation:
+                  (Ax)----------- (Ax)----------   (Ax)----------- (Ax)----------
+                      Γ, A ⊩ ~ A      Γ, A ⊩ A        Γ, B ⊩ ~ B      Γ, B ⊩ B
+  (Ax)---------- (~E)---------------------------   (~E)--------------------------
+      Γ ⊩ A ⋁ B             Γ, A ⊩ ⊥                        Γ, B ⊩ ⊥ 
+      ---------------------------------------------------------------------------
+                                    Γ ⊩ ⊥
+    -/
+    have hincon : (inconsistent Γ), {
+      apply Deriv.Or_E,
+      { exact Deriv.Ax hAB },
+      { apply Deriv.Not_E, 
+        exact Deriv.Ax (or.intro_right _ hnAin),
+        exact Deriv.Ax (or.intro_left _ rfl)},
+      {
+        apply Deriv.Not_E, 
+        exact Deriv.Ax (or.intro_right _ hnBin),
+        exact Deriv.Ax (or.intro_left _ rfl)
+      }
+    },
+    exact hcon hincon
+  },
+  {
+    intro h,
+    rw ←deriv_closure hcomp hcon,
+    cases h with hA hB,
+    { exact Deriv.Or_I_1 (Deriv.Ax hA) },
+    { exact Deriv.Or_I_2 (Deriv.Ax hB) }
+  }
+end
+
+
+
+lemma lindenbaum (hcon : consistent Γ) 
+  : ∃ CΓ, Γ ⊆ CΓ ∧ complete CΓ ∧ consistent CΓ :=
+begin -- Use Zorn's Lemma
+ /- Let A₀ , ...
+  Γ₀ = Γ
+  Γn+1 = if consistent (insert Aₙ Γ) then insert Aₙ Γ else insert (¬ Aₙ) Γ
+  -/
   sorry
 end
 
-def completeness {vars : Type} (Γ : list (Form vars)) (A : Form vars) : 
+noncomputable def lindenbaum_model 
+  (CΓ : set (Form vars)) (hcomp : complete CΓ) (hcon : consistent CΓ)
+  : vars → bool :=
+λ p, if ⦃p⦄ ∈ CΓ then true else false
+
+lemma truth_lemma
+  (CΓ : set (Form vars)) (hcomp : complete CΓ) (hcon : consistent CΓ)
+  : ↥(lindenbaum_model CΓ hcomp hcon ⊨ A) ↔ A ∈ CΓ :=
+begin
+  induction A,
+  case Form.Bottom {
+    simp [eval],
+    rw ←deriv_closure hcomp hcon,
+    exact hcon
+  },
+  case Form.Var {
+    simp [eval, lindenbaum_model],
+    -- Learning Point: using `set_option pp.notation false` to find out what 
+    -- ↥ desugars to, so that the apply_ite theorem can be used
+    rw apply_ite coe_sort (⦃A⦄ ∈ CΓ) tt ff,
+    simp
+  },
+  case Form.Not : A ih {
+    simp [eval, ih],
+    exact (neg_in_iff_not_in hcomp hcon).symm
+  },
+  case Form.And : A B ihA ihB {
+    simp [eval, ihA, ihB],
+    exact (and_in_iff_both_in hcomp hcon).symm
+  },
+  case Form.Or : A B ihA ihB {
+    simp [eval, ihA, ihB],
+    exact (or_in_iff_either_in hcomp hcon).symm
+  },
+end
+
+theorem completeness' {Γ : set (Form vars)} : 
+                  consistent Γ → satisfiable Γ := 
+begin
+  intro hcon,
+  -- construct the lindenbaum completion CΓ of Γ
+  rcases lindenbaum hcon with ⟨CΓ, hsuper, hcomp, hcon⟩,
+  simp [satisfiable],
+  -- build a model out of CΓ
+  use lindenbaum_model CΓ hcomp hcon,
+  -- for every sentence γ ∈ Γ,
+  intros γ hγ,
+  -- it is entailed by the model iff γ ∈ CΓ (by the truth lemma)
+  rw truth_lemma,
+  -- but this is easy to show since Γ ⊆ CΓ
+  apply hsuper,
+  exact hγ
+end
+
+theorem completeness {Γ : set (Form vars)} {A : Form vars} : 
                  (Γ ⊨ A) → (Γ ⊩ A) :=
 begin
   intro hA,
-  have : ¬ satisfiable ((~ A) :: Γ), {
+  have : ¬ satisfiable (insert (~ A) Γ), {
     rw [satisfiable_iff, entail], simp,
     intros v hnA hΓ,
     -- since hA : Γ ⊨ A, and hΓ : v ⊨ Γ, then also v ⊨ A
@@ -283,14 +448,14 @@ begin
     -- which allows us to prove falsehood
     simp [eval] at hnA,
     simp [hnA] at hA,
-    -- but falsehood is equivalent to entailing 𝔽, 
+    -- but falsehood is equivalent to entailing ⊥, 
     -- which is exactly what we need
     simp [eval],
     exact hA
   },
   -- By the completeness' theorem, we can conclude that (~ A) :: Γ is 
-  -- inconsistent, so (~ A) :: Γ ⊩ 𝔽.
-  have : ¬ consistent ((~ A) :: Γ) := mt completeness' this,
+  -- inconsistent, so (~ A) :: Γ ⊩ ⊥.
+  have : ¬ consistent (insert (~ A) Γ) := mt completeness' this,
   simp [consistent] at this,
   -- Applying the Contra derivation step, we find exactly what we need.
   exact Deriv.Contra this

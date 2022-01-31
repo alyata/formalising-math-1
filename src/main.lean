@@ -1,135 +1,12 @@
-import tactic
-
-open classical
-local attribute [instance, priority 10] prop_decidable
-
-/-- Formulas of propositional logic, 
-`Form` ::= `⦃x⦄` | `⊥` | `¬ Form` | `Form ∧ Form` | `Form ∨ Form` -/
-inductive Form (vars : Type) : Type
-| Bottom : Form
-| Var    : vars → Form
-| Not    : Form → Form
-| And    : Form → Form → Form
-| Or     : Form → Form → Form
-
-
---notation `⊥`        := Form.Bottom
-notation `⦃` a `⦄`  := Form.Var a
-notation `~` a     := Form.Not a
-notation a ` ⋀ ` b := Form.And a b
-notation a ` ⋁ ` b := Form.Or a b
-
-variables {vars : Type} {Γ : set (Form vars)} {A B C : Form vars}
-
-instance : has_bot (Form vars) := ⟨Form.Bottom⟩
-
-@[simp] lemma bottom_eq_bot : (Form.Bottom : Form vars) = ⊥ := rfl
-
-/-- Gentzen-style (Proof Tree) Natural Deduction for `Form` -/
-inductive Deriv : set (Form vars) → Form vars → Prop
-| Bottom_E  : ∀ {Γ : set (Form vars)} {A : Form vars},
-              Deriv Γ ⊥ → Deriv Γ A
-| Ax        : ∀ {Γ : set (Form vars)} {A : Form vars},
-              A ∈ Γ → Deriv Γ A
-| Not_I     : ∀ {Γ : set (Form vars)} {A : Form vars}, 
-              Deriv (insert A Γ) ⊥ → Deriv Γ (~ A)
-| Not_E     : ∀ {Γ : set (Form vars)} {A : Form vars}, 
-              Deriv Γ (~ A) → Deriv Γ A → Deriv Γ ⊥
-| And_I     : ∀ {Γ : set (Form vars)} {A B : Form vars}, 
-              Deriv Γ A → Deriv Γ B → Deriv Γ (A ⋀ B)
-| And_E_1   : ∀ {Γ : set (Form vars)} {A B : Form vars}, 
-              Deriv Γ (A ⋀ B) → Deriv Γ A
-| And_E_2   : ∀ {Γ : set (Form vars)} {A B : Form vars}, 
-              Deriv Γ (A ⋀ B) → Deriv Γ B
-| Or_I_1    : ∀ {Γ : set (Form vars)} {A B : Form vars}, 
-              Deriv Γ A → Deriv Γ (A ⋁ B)
-| Or_I_2    : ∀ {Γ : set (Form vars)} {A B : Form vars}, 
-              Deriv Γ B → Deriv Γ (A ⋁ B)
-| Or_E      : ∀ {Γ : set (Form vars)} {A B C : Form vars}, 
-              Deriv Γ (A ⋁ B) → Deriv (insert A Γ) C → Deriv (insert B Γ) C 
-              → Deriv Γ C
-| Contra    : ∀ {Γ : set (Form vars)} {A : Form vars}, 
-              Deriv (insert (~ A) Γ) ⊥ → Deriv Γ A
-
-notation Γ ` ⊩ ` A := Deriv Γ A
-notation Γ ` ⊮ ` A := ¬ Deriv Γ A
-
-def inconsistent (Γ : set (Form vars)) : Prop := Γ ⊩ ⊥ 
-def consistent   (Γ : set (Form vars)) : Prop := Γ ⊮ ⊥ 
-
-/-- An example derivation:
-(Ax) ---------  --------- (Ax)
-     A, B ⊩ A   A, B ⊩ B
-    --------------------- (⋀I)
-         A, B ⊩ A ⋀ B
--/
-example : {A, B} ⊩ (A ⋀ B) :=
-begin
-  apply Deriv.And_I,
-  {
-    apply Deriv.Ax,
-    simp,
-  },
-  {
-    apply Deriv.Ax,
-    simp
-  }
-end
-
-def eval (v : vars → bool) : Form vars → bool
-| ⊥       := false
-| ⦃x⦄     := v x
-| (~ P)   := not (eval P)
-| (P ⋀ Q) := and (eval P) (eval Q)
-| (P ⋁ Q) := or (eval P) (eval Q)
-
-notation `⟦` P `⟧_` v := eval v P
-notation v ` ⊨ ` A := ⟦A⟧_v
-notation v ` ⊨ ` Γ := ∀ γ, γ ∈ Γ → ⟦γ⟧_v
-
-theorem no_bottom (v : vars → bool) : ¬ (↥(v ⊨ ⊥)) :=
-by simp [eval]
-
-def entail (Γ : set (Form vars)) (A : Form vars) : Prop :=
-∀ (v : vars → bool), (v ⊨ Γ) → (v ⊨ A)
-
-notation Γ ` ⊨ ` A := entail Γ A
-notation Γ ` ⊭ ` A := ¬ entail Γ A
-
-@[simp] def satisfiable (Γ : set (Form vars)) : Prop :=
-∃ (v : vars → bool), v ⊨ Γ
-@[simp] def unsatisfiable (Γ : set (Form vars)) : Prop :=
-¬ satisfiable Γ
-
-theorem satisfiable_iff : satisfiable Γ ↔ (Γ ⊭ ⊥) :=
-by simp [satisfiable, entail, eval]
-
-theorem unsatisfiable_iff : unsatisfiable Γ ↔ (Γ ⊨ ⊥) :=
-begin
-  simp [eval, entail],
-  split,
-  {
-    intros h v hΓ,
-    rcases h v with ⟨γ, hin, hγ⟩,
-    specialize hΓ γ hin,
-    simp [hγ] at hΓ,
-    exact hΓ
-  },
-  {
-    intros h v,
-    specialize h v,
-    by_contra h',
-    simp at h',
-    apply h,
-    intros γ hin,
-    specialize h' γ hin,
-    simp [h'],
-  }
-end
+import form
+import natural_deduction
+import semantics
 
 ------------------------------------------------------
 -- Main Theorems: soundness & completeness theorems --
 ------------------------------------------------------
+
+variables {vars : Type} [denumerable vars] {Γ : set (Form vars)} {A B C : Form vars}
 
 theorem soundness : (Γ ⊩ A) → (Γ ⊨ A) :=
 begin
@@ -369,25 +246,100 @@ begin
   }
 end
 
+/-- Let Γ be a consistent set of formulas. 
 
+Using the denumeration A₀, A₁, ... of all formulas, define the following sets 
+inductively:
 
-lemma lindenbaum (hcon : consistent Γ) 
-  : ∃ CΓ, Γ ⊆ CΓ ∧ complete CΓ ∧ consistent CΓ :=
-begin -- Use Zorn's Lemma
- /- Let A₀ , ...
-  Γ₀ = Γ
-  Γn+1 = if consistent (insert Aₙ Γ) then insert Aₙ Γ else insert (¬ Aₙ) Γ
+ Γ₀ = Γ
+
+ Γₙ₊₁ = if consistent (insert Aₙ Γₙ) then insert Aₙ Γₙ else insert (~ Aₙ) Γₙ
   -/
-  sorry
+def lindenbaum_fn (Γ : set (Form vars)) (hcon : consistent Γ) 
+  [∀ (Γ : set (Form vars)), decidable (consistent Γ)] : ℕ → set (Form vars)
+| 0 := Γ
+| (n + 1) := 
+let Aₙ := denumerable.of_nat (Form vars) n in
+if consistent (insert Aₙ (lindenbaum_fn n)) 
+then insert Aₙ (lindenbaum_fn n) 
+else insert (~ Aₙ) (lindenbaum_fn n)
+
+lemma lindenbaum_fn_consistent {Γ : set (Form vars)} {hcon : consistent Γ}
+  [∀ (Γ : set (Form vars)), decidable (consistent Γ)]
+  : ∀ n, consistent (lindenbaum_fn Γ hcon n) :=
+begin
+  intro n,
+  induction n,
+  case nat.zero { exact hcon },
+  case nat.succ : k ih {
+    simp [lindenbaum_fn],
+    simp [apply_ite consistent 
+          (consistent (insert (denumerable.of_nat (Form vars) k) (lindenbaum_fn Γ hcon k)))
+          (insert (denumerable.of_nat (Form vars) k) (lindenbaum_fn Γ hcon k))
+          (insert (~ (denumerable.of_nat (Form vars) k)) (lindenbaum_fn Γ hcon k))],
+    by_cases hc : consistent (insert (denumerable.of_nat (Form vars) k) (lindenbaum_fn Γ hcon k)),
+    -- if inserting A is consistent, then goal immediately follows.
+    { rw if_pos hc, exact hc },
+    -- if inserting A is inconsistent, then we prove by contradiction since if
+    -- inserting A or ~ A are both inconsistent, then we can show it is 
+    -- already inconsistent before insertion, thus contradicting the ih.
+    { rw if_neg hc, by_contra hnc, simp [consistent] at hc hnc, 
+      exact ih (Deriv.Not_E (Deriv.Not_I hnc) (Deriv.Not_I hc)),
+    }
+  }
 end
 
-noncomputable def lindenbaum_model 
-  (CΓ : set (Form vars)) (hcomp : complete CΓ) (hcon : consistent CΓ)
+lemma lindenbaum_lemma (Γ : set (Form vars)) (hcon : consistent Γ) 
+  [∀ (Γ : set (Form vars)), decidable (consistent Γ)] 
+  : ∃ CΓ, Γ ⊆ CΓ ∧ complete CΓ ∧ consistent CΓ :=
+begin -- Check out Zorn's Lemma
+  refine ⟨⋃ (i : ℕ), (lindenbaum_fn Γ hcon i), _, _, _⟩,
+  -- Γ ⊆ CΓ
+  { exact set.subset_Union (lindenbaum_fn Γ hcon) 0 },
+  -- complete CΓ
+  { rw complete, intro A,
+    have : A ∈ lindenbaum_fn Γ hcon (encodable.encode A + 1) ∨
+       (~ A) ∈ lindenbaum_fn Γ hcon (encodable.encode A + 1), {
+      simp [lindenbaum_fn],
+      -- we can simplify using apply_ite, but the apply_ite itself needs to be
+      -- simplified before it is applicable
+      have apply_mem_A, from
+      apply_ite (λΓ, A ∈ Γ) 
+                (consistent (insert A (lindenbaum_fn Γ hcon (encodable.encode A))))
+                (insert A (lindenbaum_fn Γ hcon (encodable.encode A)))
+                (insert (~ A) (lindenbaum_fn Γ hcon (encodable.encode A))),
+      have apply_mem_nA, from
+      apply_ite (λΓ, (~ A) ∈ Γ) 
+                (consistent (insert A (lindenbaum_fn Γ hcon (encodable.encode A))))
+                (insert A (lindenbaum_fn Γ hcon (encodable.encode A)))
+                (insert (~ A) (lindenbaum_fn Γ hcon (encodable.encode A))),
+      simp at apply_mem_A apply_mem_nA,
+      rw [apply_mem_A, apply_mem_nA],
+      -- part of the goal is to show either the set is consistent or 
+      -- inconsistent, which can be shown by the law of excluded middle
+      by_cases hc : consistent (insert A (lindenbaum_fn Γ hcon (encodable.encode A))),
+      {left, left, exact hc}, {right, left, exact hc}
+    },
+    cases this,
+    { left, 
+      apply set.mem_of_mem_of_subset this, 
+      exact set.subset_Union (lindenbaum_fn Γ hcon) (encodable.encode A + 1) },
+    { right,
+      apply set.mem_of_mem_of_subset this,
+      exact set.subset_Union (lindenbaum_fn Γ hcon) (encodable.encode A + 1) }
+  },
+  -- consistent CΓ
+    { sorry }
+end
+
+def lindenbaum_model (CΓ : set (Form vars)) [∀p, decidable (⦃p⦄ ∈ CΓ)]
+  (hcomp : complete CΓ) (hcon : consistent CΓ)
   : vars → bool :=
 λ p, if ⦃p⦄ ∈ CΓ then true else false
 
 lemma truth_lemma
-  (CΓ : set (Form vars)) (hcomp : complete CΓ) (hcon : consistent CΓ)
+  (CΓ : set (Form vars)) [∀p, decidable (⦃p⦄ ∈ CΓ)]
+  (hcomp : complete CΓ) (hcon : consistent CΓ)
   : ↥(lindenbaum_model CΓ hcomp hcon ⊨ A) ↔ A ∈ CΓ :=
 begin
   induction A,
@@ -420,9 +372,12 @@ end
 theorem completeness' {Γ : set (Form vars)} : 
                   consistent Γ → satisfiable Γ := 
 begin
+  -- specifically, we need membership in CΓ to be decidable
+  -- and consistency to be decicable
+  classical,
   intro hcon,
   -- construct the lindenbaum completion CΓ of Γ
-  rcases lindenbaum hcon with ⟨CΓ, hsuper, hcomp, hcon⟩,
+  rcases lindenbaum_lemma Γ hcon with ⟨CΓ, hsuper, hcomp, hcon⟩,
   simp [satisfiable],
   -- build a model out of CΓ
   use lindenbaum_model CΓ hcomp hcon,

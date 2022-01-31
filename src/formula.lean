@@ -24,14 +24,17 @@ notation `~` a     := Form.Not a
 notation a ` ⋀ ` b := Form.And a b
 notation a ` ⋁ ` b := Form.Or a b
 
+instance {vars : Type} : inhabited (Form vars) := ⟨Form.Bottom⟩
+
 -- Show that `Form vars` is denumerable with an explicit bijection, 
 -- given a denumerable `vars`
 
 variables {vars : Type} [denumerable vars]
 
--- we protect the constructions because they're intended to be used via the
+-- We protect the constructions because they're intended to be used via the
 -- encodable and denumerable interface, not directly.
 
+/-- Bijective encoding of Form into ℕ -/
 @[protected]
 def enc : Form vars → ℕ
 | ⊥       := 0
@@ -40,6 +43,7 @@ def enc : Form vars → ℕ
 | (P ⋀ Q) := (nat.mkpair (enc P) (enc Q)) * 4 + 3
 | (P ⋁ Q) := (nat.mkpair (enc P) (enc Q)) * 4 + 4
 
+/-- Bijective decoding of ℕ into Form -/
 @[protected]
 def dec : ℕ → Form vars
 | 0       := ⊥
@@ -60,6 +64,7 @@ def dec : ℕ → Form vars
     | k + 4, lt_four := absurd lt_four dec_trivial 
   end
 
+/-- Same as Form.dec, but returns the decoded formula wrapped in option.some -/
 @[protected]
 def dec' : ℕ → option (Form vars) := some ∘ dec
 
@@ -190,3 +195,5 @@ begin
 end
 
 instance : denumerable (Form vars) := ⟨enc_decode_inv⟩
+
+#lint

@@ -1,4 +1,4 @@
-import form
+import formula
 
 variable {vars : Type}
 
@@ -57,3 +57,5 @@ begin
     simp [h'],
   }
 end
+
+#lint

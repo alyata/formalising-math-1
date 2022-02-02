@@ -58,48 +58,110 @@ begin
   }
 end
 
+lemma lindenbaum_fn_chain {Γ : set (Form vars)} {hcon : consistent Γ} {n i : ℕ} (hi : i ≤ n)
+  [denumerable vars] [∀ (Γ : set (Form vars)), decidable (consistent Γ)] 
+  : lindenbaum_fn Γ i ⊆ lindenbaum_fn Γ n :=
+begin
+  cases lt_or_eq_of_le hi with hlt heq,
+  -- if i = n then its trivial
+  swap, { rw heq },
+  -- otherwise induction
+  clear hi,
+  induction n,
+  -- if n = 0 then there's no i < 0 so vacuously true
+  case nat.zero { simp at hlt, exfalso, exact hlt },
+  -- for the inductive case
+  case nat.succ : k ih { 
+    simp [lindenbaum_fn], 
+    set A := denumerable.of_nat (Form vars) k,
+    split_ifs with hc,
+    { cases lt_or_eq_of_le (nat.le_of_lt_succ hlt) with hlt heq,
+      -- if (hlt : i < k) then by the ih Γᵢ ⊆ Γₖ and Γₖ ⊆ Γₖ₊₁
+      {exact trans (ih hlt) (set.subset_insert A _) },
+      -- otherwise (heq : i = k) so Γᵢ = Γₖ and Γₖ ⊆ Γₖ₊₁
+      { rw heq, exact set.subset_insert A _ }
+    },
+    { -- exact same proof as above since we don't care about what formula is being inserted
+      cases lt_or_eq_of_le (nat.le_of_lt_succ hlt) with hlt heq,
+      -- if (hlt : i < k) then by the ih Γᵢ ⊆ Γₖ and Γₖ ⊆ Γₖ₊₁
+      { exact trans (ih hlt) (set.subset_insert (~ A) _) },
+      -- otherwise (heq : i = k) so Γᵢ = Γₖ and Γₖ ⊆ Γₖ₊₁
+      { rw heq, exact set.subset_insert (~ A) _ }
+    }
+  }
+end
+
 /-- Using the sequence of sets defined above -/
 lemma lindenbaum_lemma (Γ : set (Form vars)) (hcon : consistent Γ) 
-  [denumerable vars] [∀ (Γ : set (Form vars)), decidable (consistent Γ)] 
+  [denumerable vars] [∀ (Γ : set (Form vars)), decidable (consistent Γ)]
+  [∀ (Γ : set (Form vars)) A, decidable (A ∈ Γ)]
   : ∃ CΓ, Γ ⊆ CΓ ∧ complete CΓ ∧ consistent CΓ :=
 begin
-  refine ⟨⋃ (i : ℕ), (lindenbaum_fn Γ i), _, _, _⟩,
+  let CΓ := ⋃ (i : ℕ), (lindenbaum_fn Γ i),
+  refine ⟨CΓ, _, _, _⟩,
   -- Γ ⊆ CΓ
   { exact set.subset_Union (lindenbaum_fn Γ) 0 },
   -- complete CΓ
-  { rw complete, intro A,
-    have : A ∈ lindenbaum_fn Γ (encodable.encode A + 1) ∨
+  { rw complete, 
+    intro A,
+    simp,
+    -- if A appears as the nth formula, then it is inserted in Γₙ₊₁ 
+    have hA : A ∈ lindenbaum_fn Γ (encodable.encode A + 1) ∨
        (~ A) ∈ lindenbaum_fn Γ (encodable.encode A + 1), {
       simp [lindenbaum_fn],
-      -- we can simplify using apply_ite, but the apply_ite itself needs to be
-      -- simplified before it is applicable
-      have apply_mem_A, from
-      apply_ite (λΓ, A ∈ Γ) 
-                (consistent (insert A (lindenbaum_fn Γ (encodable.encode A))))
-                (insert A (lindenbaum_fn Γ (encodable.encode A)))
-                (insert (~ A) (lindenbaum_fn Γ (encodable.encode A))),
-      have apply_mem_nA, from
-      apply_ite (λΓ, (~ A) ∈ Γ) 
-                (consistent (insert A (lindenbaum_fn Γ (encodable.encode A))))
-                (insert A (lindenbaum_fn Γ (encodable.encode A)))
-                (insert (~ A) (lindenbaum_fn Γ (encodable.encode A))),
-      simp at apply_mem_A apply_mem_nA,
-      rw [apply_mem_A, apply_mem_nA],
-      -- part of the goal is to show either the set is consistent or 
-      -- inconsistent, which can be shown by the law of excluded middle
-      by_cases hc : consistent (insert A (lindenbaum_fn Γ (encodable.encode A))),
-      {left, left, exact hc}, {right, left, exact hc}
+      split_ifs with hc,
+      { left, exact set.mem_insert A _ },
+      { right, exact set.mem_insert (~A) _ },
     },
-    cases this,
-    { left, 
-      apply set.mem_of_mem_of_subset this, 
-      exact set.subset_Union (lindenbaum_fn Γ) (encodable.encode A + 1) },
+    cases hA,
+    { left,
+      use encodable.encode A + 1,
+      exact hA },
     { right,
-      apply set.mem_of_mem_of_subset this,
-      exact set.subset_Union (lindenbaum_fn Γ) (encodable.encode A + 1) }
+      use encodable.encode A + 1,
+      exact hA }
   },
   -- consistent CΓ
-    { sorry }
+  {
+    -- every finite subset of CΓ is a subset of Γₙ for some n
+    have hfinsub : ∀ (Δ : set (Form vars)), Δ.finite → Δ ⊆ CΓ → ∃n, Δ ⊆ lindenbaum_fn Γ n, {
+      intros Δ hΔfin hsub,
+      by_cases hne : Δ.nonempty,
+      { -- Because Δ is finite, it is a subset of the union of a finite amount of
+        -- Γₙs. We want to take the max of the indices n, as the Γₙ with the greatest
+        -- index contains all the others (see lindenbaum_fn_chain).
+        have := set.finite_subset_Union hΔfin hsub,
+        rcases this with ⟨finΓ, ⟨hfinΓ⟩, hsubfinΓ⟩,
+        have hfinΓne : (@set.to_finset ℕ finΓ hfinΓ).nonempty, {
+          sorry -- not sure how to show this but it should follow from Δ being nonempty
+        },
+        -- can't resolve fintype typeclass implicitly for some reason
+        use (@set.to_finset ℕ finΓ hfinΓ).max' hfinΓne,
+        set max_i := (@set.to_finset ℕ finΓ hfinΓ).max' hfinΓne,
+        -- now we reason about each δ ∈ Δ from the fact that it belongs to some Γᵢ
+        -- where i belongs in finΓ.
+        intros δ hδ,
+        specialize hsubfinΓ hδ, simp at hsubfinΓ,
+        rcases hsubfinΓ with ⟨i, hi, hmemΓi⟩,
+        -- using lindenbaum_fn_chain we can show each δ belongs to Γ_max_i 
+        apply lindenbaum_fn_chain, exact hcon,
+        exact finset.le_max' (@set.to_finset ℕ finΓ hfinΓ) i 
+                             ((@set.mem_to_finset ℕ finΓ hfinΓ i).mpr hi),
+        exact hmemΓi
+      },
+      -- if Δ is empty, its trivially a subset of any set
+      { use 0, simp [set.not_nonempty_iff_eq_empty] at hne, rw hne, simp},
+    },
+    -- every finite subset of CΓ is consistent, since it is a subset of some Γₙ
+    -- and those are all consistent
+    have hfincon : ∀ (Δ : set (Form vars)), Δ ⊆ CΓ → Δ.finite → consistent Δ, {
+      intros Δ hsub hΔfin,
+      rcases hfinsub Δ hΔfin hsub with ⟨n, hsubΓn⟩,
+      apply mt (Deriv.Weakening hsubΓn),
+      apply lindenbaum_fn_consistent n, exact hcon -- why can't it ever resolve hcon implicitly???
+    },
+    exact deriv_compactness' hfincon,
+  }
 end
 
 def lindenbaum_model (CΓ : set (Form vars)) [∀p, decidable (⦃p⦄ ∈ CΓ)]

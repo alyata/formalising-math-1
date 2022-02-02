@@ -127,6 +127,13 @@ begin
    specialize ih this, simp [eval] at ih,
    exact ih
   },
+  case Deriv.Weakening : Γ Γ' A hsub h ih {
+    apply ih,
+    intros γ hγ,
+    apply hΓ,
+    apply hsub,
+    exact hγ
+  }
 end  
 
 theorem soundness' : satisfiable Γ → consistent Γ :=

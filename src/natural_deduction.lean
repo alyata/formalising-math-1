@@ -35,16 +35,18 @@ inductive Deriv : set (Form vars) → Form vars → Prop
 -- This is an admissible rule (we can prove it from the others), but its easier
 -- to just add it as most of the inductive cases are easy to prove for this rule
 -- and its helpful in many situations.
-| Weakening : ∀ {Γ Γ' : set (Form vars)} {A : Form vars},
-              (Γ ⊆ Γ') → (Deriv Γ A) → (Deriv Γ' A)
+| Weakening : ∀ {Γ Δ : set (Form vars)} {A : Form vars},
+              (Γ ⊆ Δ) → (Deriv Γ A) → (Deriv Δ A)
 
 open Deriv
 
 notation Γ ` ⊩ ` A := Deriv Γ A
 notation Γ ` ⊮ ` A := ¬ Deriv Γ A
 
-def inconsistent (Γ : set (Form vars)) : Prop := Γ ⊩ ⊥ 
+/-- Γ is consistent if it cannnot derive ⊥.-/
 def consistent   (Γ : set (Form vars)) : Prop := Γ ⊮ ⊥
+/-- Γ is inconsistent if it can derive ⊥.-/
+def inconsistent (Γ : set (Form vars)) : Prop := Γ ⊩ ⊥ 
 
 /-- An example derivation:
 (Ax) ---------  --------- (Ax)
@@ -73,18 +75,18 @@ Regardless we have to construct such a finite subset explicitly for a formal
 proof. -/
 theorem deriv_compactness
 {Γ : set (Form vars)} {A} (h : Γ ⊩ A) 
-  : ∃ Γ', Γ' ⊆ Γ ∧ Γ'.finite ∧ (Γ' ⊩ A) :=
+  : ∃ Δ, Δ ⊆ Γ ∧ Δ.finite ∧ (Δ ⊩ A) :=
 begin
   induction h,
-  -- the proof inductively constructs a Γ' containing only the assumptions that
+  -- the proof inductively constructs a Δ containing only the assumptions that
   -- are actually used in the derivation. Most cases are trivial because we can
   -- just use the same set given by the IH. The exception are rules Not_I, Or_E 
   -- and Contra where the premise(s) add new assumptions. For these rules, we 
   -- have to remove the added assumptions from the set given in the ih and
   -- prove that this new set satisfies the requirements.
   case Deriv.Bottom_E : Γ A _ ih {
-    rcases ih with ⟨Γ', hsub, hfin, hbot⟩,
-    use Γ', use hsub, use hfin,
+    rcases ih with ⟨Δ, hsub, hfin, hbot⟩,
+    use Δ, use hsub, use hfin,
     use Deriv.Bottom_E hbot,
   },
   case Deriv.Ax : Γ A h {
@@ -94,12 +96,12 @@ begin
     { apply Deriv.Ax, simp }
   },
   case Deriv.Not_I : Γ A _ ih {
-    rcases ih with ⟨Γ', hsub, hfin, hbot⟩,
-    use Γ' \ {A}, -- remove the assumption added by the Not_I rule
+    rcases ih with ⟨Δ, hsub, hfin, hbot⟩,
+    use Δ \ {A}, -- remove the assumption added by the Not_I rule
     refine ⟨_, _, _⟩,
     { simp, exact hsub },
-    { exact set.finite.subset hfin (set.diff_subset Γ' {A}) },
-    { apply Deriv.Not_I, simp, exact Deriv.Weakening (by simp : Γ' ⊆ insert A Γ') hbot }
+    { exact set.finite.subset hfin (set.diff_subset Δ {A}) },
+    { apply Deriv.Not_I, simp, exact Deriv.Weakening (by simp : Δ ⊆ insert A Δ) hbot }
   },
   case Deriv.Not_E : Γ A _ _ ihnA ihA {
     rcases ihnA with ⟨ΓnA, hnAsub, hnAfin, hnA⟩,
@@ -122,20 +124,20 @@ begin
       exact Deriv.Weakening (by simp) hB },
   },
   case Deriv.And_E_1 : Γ A B _ ih {
-    rcases ih with ⟨Γ', hsub, hfin, hA⟩,
-    exact ⟨Γ', hsub, hfin, Deriv.And_E_1 hA⟩
+    rcases ih with ⟨Δ, hsub, hfin, hA⟩,
+    exact ⟨Δ, hsub, hfin, Deriv.And_E_1 hA⟩
   },
   case Deriv.And_E_2 : Γ A B _ ih {
-    rcases ih with ⟨Γ', hsub, hfin, hB⟩,
-    exact ⟨Γ', hsub, hfin, Deriv.And_E_2 hB⟩
+    rcases ih with ⟨Δ, hsub, hfin, hB⟩,
+    exact ⟨Δ, hsub, hfin, Deriv.And_E_2 hB⟩
   },
   case Deriv.Or_I_1 : Γ A B _ ih {
-    rcases ih with ⟨Γ', hsub, hfin, hA⟩,
-    exact ⟨Γ', hsub, hfin, Deriv.Or_I_1 hA⟩
+    rcases ih with ⟨Δ, hsub, hfin, hA⟩,
+    exact ⟨Δ, hsub, hfin, Deriv.Or_I_1 hA⟩
   },
   case Deriv.Or_I_2 : Γ A B _ ih {
-    rcases ih with ⟨Γ', hsub, hfin, hB⟩,
-    exact ⟨Γ', hsub, hfin, Deriv.Or_I_2 hB⟩
+    rcases ih with ⟨Δ, hsub, hfin, hB⟩,
+    exact ⟨Δ, hsub, hfin, Deriv.Or_I_2 hB⟩
   },
   case Deriv.Or_E : Γ A B C _ _ _ ihAB ihAC ihBC {
     rcases ihAB with ⟨ΓAB, hABsub, hABfin, hAB⟩,
@@ -165,18 +167,18 @@ begin
   },
   case Deriv.Contra : Γ A _ ih {
     -- this case is similar to Not_I
-    rcases ih with ⟨Γ', hsub, hfin, hbot⟩,
-    use Γ' \ {~ A},
+    rcases ih with ⟨Δ, hsub, hfin, hbot⟩,
+    use Δ \ {~ A},
     refine ⟨_, _, _⟩,
     { simp, exact hsub },
-    { exact set.finite.subset hfin (set.diff_subset Γ' {~ A}) },
+    { exact set.finite.subset hfin (set.diff_subset Δ {~ A}) },
     { apply Deriv.Contra, 
       simp, 
-      exact Deriv.Weakening (by simp : Γ' ⊆ insert (~ A) Γ') hbot }
+      exact Deriv.Weakening (by simp : Δ ⊆ insert (~ A) Δ) hbot }
   },
   case Deriv.Weakening : Γ SΓ A hsub _ ih {
-    rcases ih with ⟨Γ', hsub', hfin, hA⟩,
-    exact ⟨Γ', trans hsub' hsub, hfin, hA⟩
+    rcases ih with ⟨Δ, hsub', hfin, hA⟩,
+    exact ⟨Δ, trans hsub' hsub, hfin, hA⟩
   }
 end
 

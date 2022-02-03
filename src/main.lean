@@ -27,8 +27,6 @@ If Γ ⊨ A, then A is entailed also by a finite subset of Γ. -/
 theorem compactness (h : Γ ⊨ A) : ∃ Δ, Δ ⊆ Γ ∧ Δ.finite ∧ (Δ ⊨ A) :=
 begin
   rw ←deriv_iff_entail at h,
-  -- don't know why I can't directly rewrite within an ∃...
-  -- now I have to manually unpack deriv_compactness
   have := deriv_compactness h,
   rcases this with ⟨Δ, this⟩,
   use Δ,
@@ -43,7 +41,6 @@ theorem compactness' (hfinsat : ∀ (Δ : set (Form vars)), Δ ⊆ Γ → Δ.fin
 begin
 rw ←consistent_iff_satisfiable,
 apply deriv_compactness',
--- once again I can't rewrite inside ∀ quantifier...
 intro Δ,
 specialize hfinsat Δ,
 rw ←consistent_iff_satisfiable at hfinsat,

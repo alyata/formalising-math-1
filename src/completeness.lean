@@ -96,7 +96,6 @@ end
 completion of Γ that preserves Γ's consistency. -/
 lemma lindenbaum_lemma (Γ : set (Form vars)) (hcon : consistent Γ) 
   [denumerable vars] [∀ (Γ : set (Form vars)), decidable (consistent Γ)]
-  [∀ (Γ : set (Form vars)) A, decidable (A ∈ Γ)]
   : ∃ CΓ, Γ ⊆ CΓ ∧ complete CΓ ∧ consistent CΓ :=
 begin
   let CΓ := ⋃ (i : ℕ), (lindenbaum_fn Γ i),
@@ -128,39 +127,49 @@ begin
     have hfinsub : ∀ (Δ : set (Form vars)), Δ.finite → Δ ⊆ CΓ → ∃n, Δ ⊆ lindenbaum_fn Γ n, {
       intros Δ hΔfin hsub,
       by_cases hne : Δ.nonempty,
-      { -- Because Δ is finite, it is a subset of the union of a finite amount of
-        -- Γₙs. We want to take the max of the indices n, as the Γₙ with the greatest
-        -- index contains all the others (see lindenbaum_fn_chain).
+      { -- Suppose Δ is nonempty.
+        -- Because Δ is finite, it is a subset of the union of a finite amount of
+        -- the Γᵢs in CΓ. We want to take the max of the indices i, as the Γₙ with the greatest
+        -- index contains all the other Γᵢs - and so contains Δ.
         have := set.finite_subset_Union hΔfin hsub,
+        -- finΓ is the set of indices n - it is finite and defines a subset of CΓ that contains Δ
         rcases this with ⟨finΓ, ⟨hfinΓ⟩, hsubfinΓ⟩,
-        have hfinΓne : (@set.to_finset ℕ finΓ hfinΓ).nonempty, {
-          sorry -- not sure how to show this but it should follow from Δ being nonempty
+        haveI := hfinΓ, -- to allow the fintype typeclass to be resolved implicitly
+        -- Since Δ is non-empty, finΓ is nonempty, so the maximum over finΓ is defined.
+        have hfinΓne : finΓ.to_finset.nonempty, {
+          cases hne with A hA,
+          specialize hsubfinΓ hA,
+          simp at hsubfinΓ,
+          rcases hsubfinΓ with ⟨i, hi, _⟩,
+          use i,
+          rwa set.mem_to_finset,
         },
-        -- can't resolve fintype typeclass implicitly for some reason
-        use (@set.to_finset ℕ finΓ hfinΓ).max' hfinΓne,
-        set max_i := (@set.to_finset ℕ finΓ hfinΓ).max' hfinΓne,
-        -- now we reason about each δ ∈ Δ from the fact that it belongs to some Γᵢ
+        use finΓ.to_finset.max' hfinΓne,
+        set max_i := finΓ.to_finset.max' hfinΓne,
+        -- Now we reason about each δ ∈ Δ from the fact that it belongs to some Γᵢ
         -- where i belongs in finΓ.
         intros δ hδ,
         specialize hsubfinΓ hδ, simp at hsubfinΓ,
         rcases hsubfinΓ with ⟨i, hi, hmemΓi⟩,
         -- using lindenbaum_fn_chain we can show each δ belongs to Γ_max_i 
         apply lindenbaum_fn_chain,
-        exact finset.le_max' (@set.to_finset ℕ finΓ hfinΓ) i 
-                             ((@set.mem_to_finset ℕ finΓ hfinΓ i).mpr hi),
+        exact finset.le_max' (finΓ.to_finset) i 
+                             (set.mem_to_finset.mpr hi),
         exact hmemΓi
       },
-      -- if Δ is empty, its trivially a subset of any set
+      -- otherwise if Δ is empty, its trivially a subset of any set
+      -- so we can pick any Γₙ - let's pick Γ₀ for simplicity.
       { use 0, simp [set.not_nonempty_iff_eq_empty] at hne, rw hne, simp},
     },
     -- every finite subset of CΓ is consistent, since it is a subset of some Γₙ
-    -- and those are all consistent
+    -- and those are all consistent.
     have hfincon : ∀ (Δ : set (Form vars)), Δ ⊆ CΓ → Δ.finite → consistent Δ, {
       intros Δ hsub hΔfin,
       rcases hfinsub Δ hΔfin hsub with ⟨n, hsubΓn⟩,
       apply mt (Deriv.Weakening hsubΓn),
-      apply lindenbaum_fn_consistent n, exact hcon -- why can't it ever resolve hcon implicitly???
+      apply lindenbaum_fn_consistent n, exact hcon -- why can't it resolve hcon implicitly???
     },
+    -- 
     exact deriv_compactness' hfincon,
   }
 end
@@ -171,7 +180,7 @@ def lindenbaum_model (CΓ : set (Form vars)) [∀p, decidable (⦃p⦄ ∈ CΓ)]
   : vars → bool :=
 λ p, if ⦃p⦄ ∈ CΓ then true else false
 
-lemma contradiction_of_deriv_of_nin 
+lemma contradiction_of_deriv_of_nmem 
   (hcomp : complete Γ) (hcon : consistent Γ) 
   : (Γ ⊩ A) →  A ∉ Γ → false :=
 begin
@@ -182,14 +191,13 @@ begin
   exact hcon hincon
 end
 
-lemma deriv_iff_in
+lemma deriv_iff_mem
   (hcomp : complete Γ) (hcon : consistent Γ) : (Γ ⊩ A) ↔ A ∈ Γ :=
 begin
   split,
-  {
-    intro hdA,
+  { intro hdA,
     by_contra hAnin,
-    exact contradiction_of_deriv_of_nin hcomp hcon hdA hAnin
+    exact contradiction_of_deriv_of_nmem hcomp hcon hdA hAnin
   },
   { exact Deriv.Ax }
 end
@@ -203,15 +211,14 @@ begin
   induction A,
   case Form.Bottom {
     simp [eval],
-    rw ←deriv_iff_in hcomp hcon,
+    rw ←deriv_iff_mem hcomp hcon,
     exact hcon
   },
   case Form.Var {
     simp [eval, lindenbaum_model],
-    -- Learning Point: using `set_option pp.notation false` to find out what 
-    -- ↥ desugars to (`coe_sort`), so that the apply_ite theorem can be used
-    rw apply_ite coe_sort (⦃A⦄ ∈ CΓ) tt ff,
-    simp
+    split_ifs,
+    {simp, exact h},
+    {simp, exact h}
   },
   case Form.Not : A ih {
     simp [eval, ih],
@@ -226,34 +233,30 @@ begin
   },
   case Form.And : A B ihA ihB {
     simp [eval, ihA, ihB],
-    split, 
-    {
-      rintro ⟨hA, hB⟩,
+    split,
+    { rintro ⟨hA, hB⟩,
       have hdAB : (CΓ ⊩ (A ⋀ B)) := Deriv.And_I (Deriv.Ax hA) (Deriv.Ax hB),
       by_contra hABnin,
-      exact contradiction_of_deriv_of_nin hcomp hcon hdAB hABnin
+      exact contradiction_of_deriv_of_nmem hcomp hcon hdAB hABnin
     },
-    {
-      intro hAB,
+    { intro hAB,
       have hdA : (CΓ ⊩ A) := Deriv.And_E_1 (Deriv.Ax hAB),
       have hdB : (CΓ ⊩ B) := Deriv.And_E_2 (Deriv.Ax hAB),
       split,
-      {by_contra hAnin, exact contradiction_of_deriv_of_nin hcomp hcon hdA hAnin},
-      {by_contra hBnin, exact contradiction_of_deriv_of_nin hcomp hcon hdB hBnin}
+      {by_contra hAnin, exact contradiction_of_deriv_of_nmem hcomp hcon hdA hAnin},
+      {by_contra hBnin, exact contradiction_of_deriv_of_nmem hcomp hcon hdB hBnin}
     },
   },
   case Form.Or : A B ihA ihB {
     simp[eval, ihA, ihB],
     split,
-    {
-      intro h,
-      rw ←deriv_iff_in hcomp hcon,
+    { intro h,
+      rw ←deriv_iff_mem hcomp hcon,
       cases h with hA hB,
       { exact Deriv.Or_I_1 (Deriv.Ax hA) },
       { exact Deriv.Or_I_2 (Deriv.Ax hB) }
     },
-    {
-      intro hAB,
+    { intro hAB,
       by_contra h,
       rw [not_or_distrib] at h,
       cases h with hAnin hBnin,
@@ -273,8 +276,7 @@ begin
         { apply Deriv.Not_E, 
           exact Deriv.Ax (or.intro_right _ hnAin),
           exact Deriv.Ax (or.intro_left _ rfl)},
-        {
-          apply Deriv.Not_E, 
+        { apply Deriv.Not_E, 
           exact Deriv.Ax (or.intro_right _ hnBin),
           exact Deriv.Ax (or.intro_left _ rfl)
         }
@@ -310,6 +312,7 @@ theorem completeness [denumerable vars] {Γ : set (Form vars)} {A : Form vars}
   : (Γ ⊨ A) → (Γ ⊩ A) :=
 begin
   intro hA,
+  -- We rely on the fact that if Γ ⊨ A, then insert (~ A) Γ ⊨ ⊥ 
   have : ¬ satisfiable (insert (~ A) Γ), {
     rw [satisfiable_iff, entail], simp,
     intros v hnA hΓ,

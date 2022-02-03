@@ -194,7 +194,7 @@ begin
   { exact Deriv.Ax }
 end
 
-/-- We can now show that this new model reflects membership in the completion -/
+/-- We can now show that this new model reflects membership in the completion. -/
 lemma truth_lemma
   (CΓ : set (Form vars)) [∀p, decidable (⦃p⦄ ∈ CΓ)]
   (hcomp : complete CΓ) (hcon : consistent CΓ)

@@ -2,7 +2,6 @@ import natural_deduction
 import semantics
 
 variables {vars : Type} {Γ : set (Form vars)} {A B C : Form vars}
-variable [decidable_eq (Form vars)] -- should probably actually show this
 
 theorem soundness : (Γ ⊩ A) → (Γ ⊨ A) :=
 begin

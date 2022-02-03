@@ -2,10 +2,17 @@ import tactic
 import order.bounded_order
 import data.equiv.denumerable
 
+/- In this file we define the basic definitions of the propositional language.
+The formulas are parametrized by a type which represents the collection of
+propositional variables - this type is required to be denumerable 
+(bijective to ℕ), but this is enforced in the theorems not the definition.
+We show that if the variables are denumerable then so is the type of formulas.
+This is done by an explicit Godel encoding of the formulas' syntactic structure.
+-/
+
 /-- Formulas of propositional logic
 
-Form vars ∷= ⦃x : vars⦄ | ⊥ | ~ Form | Form ⋀ Form | Form ⋁ Form
--/
+Form vars ∷= ⦃x : vars⦄ | ⊥ | ~ Form | Form ⋀ Form | Form ⋁ Form -/
 inductive Form (vars : Type) : Type
 | Bottom : Form
 | Var    : vars → Form
@@ -26,13 +33,13 @@ notation a ` ⋁ ` b := Form.Or a b
 
 instance {vars : Type} : inhabited (Form vars) := ⟨Form.Bottom⟩
 
--- Show that `Form vars` is denumerable with an explicit bijection, 
--- given a denumerable `vars`
+/- Now we show that `Form vars` is denumerable with an explicit bijection, 
+given a denumerable `vars`. -/
 
 variables {vars : Type} [denumerable vars]
 
--- We protect the constructions because they're intended to be used via the
--- encodable and denumerable interface, not directly.
+/- We protect the constructions because they're intended to be used via the
+encodable and denumerable typeclass interface, not directly. -/
 
 /-- Bijective encoding of Form into ℕ -/
 @[protected]

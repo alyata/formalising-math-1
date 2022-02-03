@@ -58,7 +58,8 @@ begin
   }
 end
 
-lemma lindenbaum_fn_chain {Γ : set (Form vars)} {hcon : consistent Γ} {n i : ℕ} (hi : i ≤ n)
+/-- If i ≤ n, then Γᵢ ⊆ Γₙ, i.e. latter Γs contain all the previous ones -/
+lemma lindenbaum_fn_chain {Γ : set (Form vars)} {n i : ℕ} (hi : i ≤ n)
   [denumerable vars] [∀ (Γ : set (Form vars)), decidable (consistent Γ)] 
   : lindenbaum_fn Γ i ⊆ lindenbaum_fn Γ n :=
 begin
@@ -91,7 +92,8 @@ begin
   }
 end
 
-/-- Using the sequence of sets defined above -/
+/-- We show that we can take union of all the Γᵢ defined above to form a 
+completion of Γ that preserves Γ's consistency. -/
 lemma lindenbaum_lemma (Γ : set (Form vars)) (hcon : consistent Γ) 
   [denumerable vars] [∀ (Γ : set (Form vars)), decidable (consistent Γ)]
   [∀ (Γ : set (Form vars)) A, decidable (A ∈ Γ)]
@@ -122,8 +124,7 @@ begin
       exact hA }
   },
   -- consistent CΓ
-  {
-    -- every finite subset of CΓ is a subset of Γₙ for some n
+  { -- First we show that every finite subset of CΓ is a subset of Γₙ for some n
     have hfinsub : ∀ (Δ : set (Form vars)), Δ.finite → Δ ⊆ CΓ → ∃n, Δ ⊆ lindenbaum_fn Γ n, {
       intros Δ hΔfin hsub,
       by_cases hne : Δ.nonempty,
@@ -144,7 +145,7 @@ begin
         specialize hsubfinΓ hδ, simp at hsubfinΓ,
         rcases hsubfinΓ with ⟨i, hi, hmemΓi⟩,
         -- using lindenbaum_fn_chain we can show each δ belongs to Γ_max_i 
-        apply lindenbaum_fn_chain, exact hcon,
+        apply lindenbaum_fn_chain,
         exact finset.le_max' (@set.to_finset ℕ finΓ hfinΓ) i 
                              ((@set.mem_to_finset ℕ finΓ hfinΓ i).mpr hi),
         exact hmemΓi
@@ -164,6 +165,8 @@ begin
   }
 end
 
+/-- From the Lindenbaum completion, we can build a semantic model 
+(variable assignment) of propositional logic. -/
 def lindenbaum_model (CΓ : set (Form vars)) [∀p, decidable (⦃p⦄ ∈ CΓ)]
   : vars → bool :=
 λ p, if ⦃p⦄ ∈ CΓ then true else false
@@ -179,7 +182,7 @@ begin
   exact hcon hincon
 end
 
-theorem deriv_iff_in
+lemma deriv_iff_in
   (hcomp : complete Γ) (hcon : consistent Γ) : (Γ ⊩ A) ↔ A ∈ Γ :=
 begin
   split,
@@ -191,6 +194,7 @@ begin
   { exact Deriv.Ax }
 end
 
+/-- We can now show that this new model reflects membership in the completion -/
 lemma truth_lemma
   (CΓ : set (Form vars)) [∀p, decidable (⦃p⦄ ∈ CΓ)]
   (hcomp : complete CΓ) (hcon : consistent CΓ)
@@ -255,8 +259,7 @@ begin
       cases h with hAnin hBnin,
       have hnAin : (~ A) ∈ CΓ := (or_iff_right hAnin).mp (hcomp A),
       have hnBin : (~ B) ∈ CΓ := (or_iff_right hBnin).mp (hcomp B),
-
-      /- The derivation:
+      /- Build the derivation:
                     (Ax)------------ (Ax)----------   (Ax)----------- (Ax)----------
                         CΓ, A ⊩ ~ A      CΓ, A ⊩ A       CΓ, B ⊩ ~ B     CΓ, B ⊩ B
     (Ax)----------- (~E)---------------------------   (~E)--------------------------
@@ -298,7 +301,7 @@ begin
   intros γ hγ,
   -- it is entailed by the model iff γ ∈ CΓ (by the truth lemma)
   rw truth_lemma CΓ hcomp hcon,
-  -- but this is easy to show since Γ ⊆ CΓ
+  -- but that's easy to show since Γ ⊆ CΓ
   apply hsuper,
   exact hγ
 end
@@ -328,3 +331,5 @@ begin
   -- Applying the Contra derivation step, we find exactly what we need.
   exact Deriv.Contra this
 end
+
+#lint

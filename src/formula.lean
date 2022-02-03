@@ -67,8 +67,8 @@ def dec : ℕ → Form vars
     | 2, _ := dec (data.unpair.fst) ⋀ dec (data.unpair.snd)
     | 3, _ := dec (data.unpair.fst) ⋁ dec (data.unpair.snd)
     -- k % 4 can't be ≥ 4, but I'm still not sure how dec_trivial works here...
-    -- This is based on nat.mod_two_eq_zero_or_one
-    | k + 4, lt_four := absurd lt_four dec_trivial 
+    -- This is based on Mathlib's nat.mod_two_eq_zero_or_one
+    | _ + 4, lt_four := absurd lt_four dec_trivial 
   end
 
 /-- Same as Form.dec, but returns the decoded formula wrapped in option.some -/

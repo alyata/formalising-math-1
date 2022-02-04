@@ -58,7 +58,7 @@ begin
   }
 end
 
-/-- If i ≤ n, then Γᵢ ⊆ Γₙ, i.e. latter Γs contain all the previous ones -/
+/-- If i ≤ n, then Γᵢ ⊆ Γₙ, i.e. latter Γs contain all the previous ones. -/
 lemma lindenbaum_fn_chain {Γ : set (Form vars)} {n i : ℕ} (hi : i ≤ n)
   [denumerable vars] [∀ (Γ : set (Form vars)), decidable (consistent Γ)] 
   : lindenbaum_fn Γ i ⊆ lindenbaum_fn Γ n :=
